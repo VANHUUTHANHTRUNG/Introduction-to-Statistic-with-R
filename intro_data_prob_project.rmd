@@ -1,0 +1,164 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+Make sure your data and R Markdown files are in the same directory. When loaded
+your data file will be called `brfss2013`. Delete this note when before you submit 
+your work. 
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+
+* * *
+
+## Part 1: Data
+The Behavioral Risk Factor Surveillance System (BRFSS) an on going collaboration with Centers for Disease Control and Prevention (CDC) which focuses on behavioral risk factors in assosiation with chronic diseases, injuries and preventable infectious diseases.
+Data are gathered from all 50 States of US in addition of District of Columbia (DC) and unincoporated territories (Guam, Puerto Rico, American Samoa, Federated State of Micronesia, Palau). The targeted population are non-institutionalized over 18 adults.
+
+### About generabizability
+  The sampled data is large in size, collected in combination of stategies which can be considered to be randomized. To be more specific, BRFSS applies interviews via both landline telephone from random adult in a household and cellular telephone (in this case, only the participates) from adults in private residence or college housing. Therefore, the data can be considered to be generalized. However, there are still some issues that may reduce the reliability such as: people's estimation on many aspects of the research may be inaccurate, the reponse rate of stategies, and so on.
+
+### About causality
+  As there was no random assignment on interviewers, only associations should be applied. The data from research can not suggest causality
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:** Lack of sleep seems to be one of the most popular cause for mental health declining. Howver some people still focus on the quantity of working hour over the quality. Based on data from BRFSS,do people who tend to sleep less than 6 hours a day really domain the high income group(over $75 000/year)?
+
+**Research quesion 2:** Optimism bias (or the optimistic bias) is a cognitive bias that causes someone to believe that they themselves are less likely to experience a negative event. It is also known as unrealistic optimism or comparative optimism. Using the data from BRFSS, can we observe similar result with general health self-evaluation form smoker?
+
+**Research quesion 3:** Smoking tobacco cigarettes could increase the risk of mental health problems such as depression and schizophrenia, research suggests. Is there significant difference in mental health (based on mental disorder point) between smoker and people who are not in continous smoking period or non-smoking?
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+**Research quesion 1:**
+
+My first question was to find out what is the distribution of sleep-duration in high-income group of interviewers.
+
+First, check possible values of 2 variables and prepare for the data we will handle.
+```{r}
+unique(brfss2013$income2)
+unique(brfss2013$sleptim1)
+```
+It can be seen that there are NA value in both of variables so we should pay attention to clean the data before other processing.
+
+```{r}
+sleep_income <- brfss2013 %>%
+  filter(!is.na(sleptim1),!is.na(income2)) %>%
+  select(sleptim1,income2)
+
+sleep_highIncome <- sleep_income %>%
+  filter(income2 == "$75,000 or more")%>%
+  group_by(sleptim1)%>%
+  summarise(count=n())
+
+ggplot(data = sleep_highIncome,aes(x= sleptim1,y= count)) + 
+  geom_bar(stat="identity",color='black',fill='blue') + 
+  labs(x='Sleep time',y = 'Number of high-income interviewers', title = "High income in relationship with sleep time")
+```
+
+The data was processed by:
+  - filtering all interviewers who have $75,000 income
+  - dividing people into buckets of sleep duration
+  - plotting
+
+From the figure, it can be seen that most of the interviewers have sleep duration varies from 3 to 10 hours a day. The top three participant groups are from 6 to 8 hour/day and they cover more than 60% of the total. There is a big decreasing right at 5 hour/day in comparison with the top three. Therefore, from the data of BRFSS we can conclude that for the high-income group, the popular sleep duration is 6-8 hour/day or people who have high income tend to secure their sleep.
+
+
+**Research quesion 2:**
+
+The second question was to find out if smoking affect on health self-estimation given to BRFSS.
+
+First, check possible values of 2 variables and prepare for the data we will handle.
+```{r}
+unique(brfss2013$smokday2)
+unique(brfss2013$genhlth)
+```
+There are NA values needed to be removed from both variables.
+
+
+```{r}
+smokday2_genhlth <- brfss2013 %>%
+  filter(!is.na(smokday2), !is.na(genhlth)) %>%
+  group_by(genhlth) %>%
+  select(genhlth, smokday2) %>%
+  count(smokday2) %>%
+  mutate(genhlth_percent = n/sum(n))
+
+smokday2_genhlth <- fortify(smokday2_genhlth)
+
+ggplot(data = smokday2_genhlth,aes(x= genhlth,y= genhlth_percent)) +
+  geom_bar(position = "stack",stat = "identity", color = "black") +
+  geom_col(aes(fill = genhlth_percent)) + geom_text(aes(label = smokday2,
+                                                        y = genhlth_percent,
+                                                        group = genhlth),
+                                                    position = position_dodge(width = 0.9),
+                                                    vjust = 1)+
+  labs(x="General health evaluation",y ="", title = "Health estimation in relationship with smoking")
+
+```
+
+From BRFSS' data, general health and smoking status were taken into account. Proportion of interviewers in each smoking status was calculated and plotted in bars for comparision.
+
+As can be seen from the chart, the groups of smoker(both Everyday and Some days) 5 cataloges of health state varies slightly. However, we can observe that the answer from smokers still ranges from Excellent to Poor which means there are quite a number of smokers who estimate themselves as healthy.However, when the health estimation changes from Excellent to Poor, the percentage of smokers increases. We can conclude that, there is optimism bias in health estimation from smokers in BRFSS' data and there is also a relationship between smoking status and general health evaluation. There are more proportion of smoker in Poor health group but the difference is not so big.
+
+
+**Research quesion 3:**
+
+First, check possible values of 2 variables.
+```{r}
+unique(brfss2013$menthlth)
+unique(brfss2013$lastsmk2)
+```
+There are NA values needed to be removed from both variables. The value of menthlth varied in such a large range which suggested trimming the outliners for better result of data handling.
+
+```{r}
+menthlth_lastsmk2 <- brfss2013 %>%
+  filter(menthlth < 100, !is.na(menthlth), !is.na(lastsmk2)) %>%
+  group_by(menthlth) %>%
+  select(menthlth,lastsmk2) %>%
+  mutate(mental_group = cut(menthlth, c(-1,0,5,10,25,30),
+                            c("normal","light","imtermediate","extreme","chronic")))
+
+menthlth_lastsmk2_percent <- menthlth_lastsmk2 %>%
+  group_by(mental_group,lastsmk2) %>%
+  summarise(count=n()) %>%
+  mutate(perc = count/sum(count))
+
+ggplot(menthlth_lastsmk2_percent,aes(y=factor(mental_group), x=perc*100,fill=factor(lastsmk2),label=round(perc*100,1)))+
+  geom_bar(stat="identity",width =0.9 , position = position_dodge(width=0.9)) +
+  geom_text(position = position_dodge(width = 0.9),
+            vjust = 0.6,
+            size = 3) +
+  labs(x = "%", y = "Disorder level",fill = "Smoking group",title = "Mental disorder based on non-smoking period")
+```
+From menthlth (the bigger mental health point the worse mental situation from inverviewers) and lastsmk2 (time since last smoking), interviewers are categorised as groups different metal health level. In each group, there are different sub-groups of last-smoking time.
+
+At Normal disorder level, 1.7% of interviewers are smoker. Move to the next stage of mental disorder, number of smoker increases to 3.2% in Light level and more than 4.4% in Chronic level which are nearly twice and more than triple times in respect. There are the same raising trends in case of people who have smoked within 6 months and 3 month. On the other hand, we can also easily notice the significant declining in percentage of people who have not smoked for more than 10 years from Normal level to Chronic level. This result shows that smoking negatively affects participants' mental health.
+
+
